@@ -24,6 +24,7 @@ from pyoptools.raytrace.component.component import Component
 
 lenslib = resource_filename("pyoptools.raytrace.library", '')
 
+LOAD_COMPONENTS = False
 
 ###############################################################################
 # Save the available component classes names defined in CL. This are the classes
@@ -96,40 +97,41 @@ class Library:
 
 # Read and load all the component libraries
 
+if LOAD_COMPONENTS:
 
-listdir(lenslib)
+    listdir(lenslib)
 
-dirs = []
-# Get the directories. Each directory is a library.
-for i in listdir(lenslib):
-    di = join(lenslib, i)
-    if isdir(di):
-        dirs.append(di)
-
-# Get the local directories
-# Check if the local library path exists
-locallenslib = reduce(join, [expanduser("~"), ".pyoptools", "library"])
-if isdir(locallenslib):
-    for i in listdir(locallenslib):
-        di = join(locallenslib, i)
+    dirs = []
+    # Get the directories. Each directory is a library.
+    for i in listdir(lenslib):
+        di = join(lenslib, i)
         if isdir(di):
             dirs.append(di)
 
+    # Get the local directories
+    # Check if the local library path exists
+    locallenslib = reduce(join, [expanduser("~"), ".pyoptools", "library"])
+    if isdir(locallenslib):
+        for i in listdir(locallenslib):
+            di = join(locallenslib, i)
+            if isdir(di):
+                dirs.append(di)
 
-for di in dirs:
-    fnames = listdir(di)
-    # Retain only the .cmp files
-    libfiles = []
-    for f in fnames:
-        n, ext = splitext(f)
-        if ext == ".cmp":
-            libfiles.append(f)
 
-    if len(libfiles) > 0:
-        libname = basename(di)
-        filename = [join(di, fn) for fn in libfiles]
-        print("Loading component library", libname, " from files ", filename)
-        Library(filename, libname=libname)
+    for di in dirs:
+        fnames = listdir(di)
+        # Retain only the .cmp files
+        libfiles = []
+        for f in fnames:
+            n, ext = splitext(f)
+            if ext == ".cmp":
+                libfiles.append(f)
+
+        if len(libfiles) > 0:
+            libname = basename(di)
+            filename = [join(di, fn) for fn in libfiles]
+            print("Loading component library", libname, " from files ", filename)
+            Library(filename, libname=libname)
 
 
 #########################################################################################################################
