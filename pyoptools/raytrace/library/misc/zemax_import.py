@@ -5,6 +5,8 @@ from enum import Enum, auto
 import json
 import sys
 import csv
+import textwrap
+import traceback
 
 def convert(d):
     try:
@@ -117,7 +119,15 @@ class ZmfImporter:
     def make_pyot_descriptors(self):
         self.descriptors = {}
         for k, v in self.zmx_data.items():
-            descriptor = self.pyot_descriptor(k)
+            try:
+                descriptor = self.pyot_descriptor(k)
+            except Exception as ex:
+                print(f"Exception converting element {k}\n")
+                print("Raw data : \n")
+                print(textwrap.indent(v, ' '*4))
+                print("Exception : \n")
+                traceback.print_exc()
+                sys.exit(0)
             if not isinstance(descriptor, FailedImport):
                 self.descriptors[k] = descriptor
             else:
@@ -365,7 +375,11 @@ class ZmfImporter:
             lens_data["type"] = "AirSpacedDoublet"
             return lens_data
 
-        elif ns == 6:
+        # Doublet pair
+        # Thorlabs have the term 'Matched Achromatic Pair'
+        # in the description. Check for this to avoid
+        # collision with triplets
+        elif ns == 6 and 'Pair' in lens_data['description']:
             lens_data["curvature_s1"] = surflist[0]["CURV"][0]
             lens_data["curvature_s2"] = surflist[1]["CURV"][0]
             lens_data["curvature_s3"] = surflist[2]["CURV"][0]
@@ -398,9 +412,17 @@ class ZmfImporter:
             lens_data["glass_catalogs"] = gcat  # This is not used for the moment
 
             lens_data["type"] = "DoubletPair"
+
+            #print('Imported a doublet pair with ns = 6\n')
+            #print(self.zmx_data[key])
+
             return lens_data
 
-        elif ns == 7:  # Doublet pair with stop in the middle, stop ignored
+        # Doublet pair with stop in the middle, stop ignored
+        # Thorlabs have the term 'Matched Achromatic Pair'
+        # in the description. Check for this to avoid
+        # collision with triplets
+        elif ns == 7 and 'Pair' in lens_data['description']:
             lens_data["curvature_s1"] = surflist[0]["CURV"][0]
             lens_data["curvature_s2"] = surflist[1]["CURV"][0]
             lens_data["curvature_s3"] = surflist[2]["CURV"][0]
@@ -433,6 +455,10 @@ class ZmfImporter:
             lens_data["glass_catalogs"] = gcat  # This is not used for the moment
 
             lens_data["type"] = "DoubletPair"
+
+            #print('Imported a doublet pair with ns = 7\n')
+            #print(self.zmx_data[key])
+
             return lens_data
 
         else:
@@ -447,10 +473,13 @@ class ZmfImporter:
 def main(filename):
     imp = ZmfImporter(filename)
     imp.import_all()
-    imp.save_json()
-    imp.save_failed_csv()
     print(f"Imported {len(imp.descriptors)} items. "
           f"Failed to import {len(imp.failed_imports)} items.")
+
+
+    imp.save_json()
+    imp.save_failed_csv()
+
 
 if __name__ == '__main__':
     main(sys.argv[1])
