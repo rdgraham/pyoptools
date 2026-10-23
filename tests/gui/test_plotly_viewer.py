@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 
 from pyoptools.gui.ipywidgets import Plot3D
@@ -5,6 +6,7 @@ from pyoptools.gui.plotly_viewer import _wavelength_to_color, plot_system_plotly
 from pyoptools.raytrace.comp_lib import (
     Block,
     CylindricalLens,
+    Doublet,
 )
 from pyoptools.raytrace.ray import Ray
 from pyoptools.raytrace.shape import Rectangular
@@ -44,6 +46,27 @@ def test_plot_system_plotly():
     trace_names = [t.name for t in fig.data]
     assert any("Beam (405 nm)" in name for name in trace_names)
     assert any("CylindricalLens" in name for name in trace_names)
+
+
+def test_plot_system_plotly_renders_nested_doublet():
+    doublet = Doublet(
+        radius=5,
+        curvature_s1=1.0 / 50.0,
+        curvature_s2=-1.0 / 50.0,
+        curvature_s3=-1.0 / 75.0,
+        thickness_l1=3,
+        thickness_l2=2,
+        material_l1=1.5,
+        material_l2=1.6,
+    )
+    sys = System(complist=[(doublet, (100, 20, 30), (0, np.pi / 2, 0))])
+
+    fig = plot_system_plotly(sys)
+
+    lens_traces = [trace for trace in fig.data if "SphericalLens" in trace.name]
+    assert len(lens_traces) == 8
+    assert min(np.min(trace.x) for trace in lens_traces) > 80
+    assert min(np.min(trace.y) for trace in lens_traces) > 10
 
 
 def test_plot3d_auto_and_component():

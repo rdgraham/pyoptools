@@ -185,6 +185,19 @@ def _generate_lens_side_mesh(
     return side_pts, side_polys
 
 
+def _iter_leaf_components(complist, parent_transform: np.ndarray | None = None):
+    """Yield renderable components with transforms composed through subsystems."""
+    if parent_transform is None:
+        parent_transform = np.eye(4)
+
+    for component, position, rotation in complist:
+        transform = parent_transform @ _transformation_matrix(position, rotation)
+        if hasattr(component, "complist"):
+            yield from _iter_leaf_components(component.complist, transform)
+        else:
+            yield component, transform
+
+
 def plot_system_plotly(
     obj: Any,
     title: str = "Optical System (3D View)",
@@ -244,9 +257,7 @@ def plot_system_plotly(
         rays_to_render = [obj]
 
     # 1. Render Optical Components with Hierarchical Transformations
-    for comp in complist:
-        component, comp_pos, comp_rot = comp
-        T_comp = _transformation_matrix(comp_pos, comp_rot)
+    for component, T_comp in _iter_leaf_components(complist):
         comp_name = type(component).__name__
 
         # Material styling: clean, distinct optical materials
@@ -266,7 +277,7 @@ def plot_system_plotly(
             color = "#E2E8F0"  # Silver/aluminum mirror
             opacity = 0.90
             flatshading = True
-        elif "CCD" in comp_name or "Detector" in comp_name or "pd" in str(comp).lower():
+        elif "CCD" in comp_name or "Detector" in comp_name or "pd" in str(component).lower():
             color = "#475569"  # Silicon detector sensor
             opacity = 0.90
             flatshading = True
