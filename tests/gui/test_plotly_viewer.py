@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from pyoptools.gui.ipywidgets import Plot3D
-from pyoptools.gui.plotly_viewer import _wavelength_to_color, plot_system_plotly
+from pyoptools.gui.plotly_viewer import plot_system_plotly
 from pyoptools.raytrace.comp_lib import (
     Block,
     CylindricalLens,
@@ -17,14 +17,13 @@ plotly = pytest.importorskip("plotly")
 import plotly.graph_objects as go
 
 
-def test_wavelength_to_color():
-    # 405 nm laser diode
-    assert _wavelength_to_color(0.405) == "#2563EB"
-    assert _wavelength_to_color(405.0) == "#2563EB"
-    # 532 nm green
-    assert _wavelength_to_color(0.532) == "#16A34A"
-    # 633 nm red
-    assert _wavelength_to_color(0.633) == "#DC2626"
+def test_plot_system_plotly_uses_ray_draw_color():
+    ray = Ray(origin=(0, 0, 0), direction=(0, 0, 1), draw_color="rebeccapurple")
+
+    fig = plot_system_plotly(ray)
+
+    assert len(fig.data) == 1
+    assert fig.data[0].line.color == "#663399"
 
 
 def test_plot_system_plotly():
@@ -44,7 +43,7 @@ def test_plot_system_plotly():
     assert isinstance(fig, go.Figure)
     assert len(fig.data) >= 7  # 6 lens surfaces + 1 ray trace
     trace_names = [t.name for t in fig.data]
-    assert any("Beam (405 nm)" in name for name in trace_names)
+    assert "Beam" in trace_names
     assert any("CylindricalLens" in name for name in trace_names)
 
 

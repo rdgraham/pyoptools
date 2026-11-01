@@ -9,6 +9,9 @@ from __future__ import annotations
 from typing import Any
 
 import numpy as np
+from matplotlib import colors
+
+from pyoptools.misc.pmisc import wavelength2RGB
 
 __all__ = ["plot_system_plotly"]
 
@@ -67,8 +70,8 @@ def _transformation_matrix(
     return T @ Rz @ Ry @ Rx
 
 
-def _extract_ray_segments(ray) -> list[tuple[np.ndarray, np.ndarray, float]]:
-    """Recursively extracts line segments and wavelengths from a pyOpTools ray and its children."""
+def _extract_ray_segments(ray) -> list[tuple[np.ndarray, np.ndarray, str]]:
+    """Recursively extract visible ray segments and their display colors."""
     segments = []
     p1 = np.array(ray.origin, dtype=float)
     if len(ray.childs) > 0:
@@ -76,37 +79,17 @@ def _extract_ray_segments(ray) -> list[tuple[np.ndarray, np.ndarray, float]]:
     else:
         p2 = p1 + 15.0 * np.array(ray.direction, dtype=float)
 
-    wl = float(getattr(ray, "wavelength", 0.589))
+    if ray.draw_color is None:
+        color = wavelength2RGB(ray.wavelength)
+    else:
+        color = colors.to_rgb(ray.draw_color)
+    color_hex = "#{:02X}{:02X}{:02X}".format(*(int(255 * c) for c in color))
     if getattr(ray, "intensity", 1.0) != 0:
-        segments.append((p1, p2, wl))
+        segments.append((p1, p2, color_hex))
 
     for child in ray.childs:
         segments.extend(_extract_ray_segments(child))
     return segments
-
-
-def _wavelength_to_color(wl: float) -> str:
-    """Map optical wavelength to an RGB hex color with accurate laser beam rendering.
-
-    Wavelength can be provided in micrometers (e.g. 0.405) or nanometers (e.g. 405.0).
-    405 nm GaN laser diode light is rendered as crisp Royal Blue.
-    """
-    wl_nm = wl * 1000.0 if wl < 10.0 else wl
-    if 380 <= wl_nm <= 440:
-        return "#2563EB"  # 405 nm Royal Blue Laser Diode
-    elif 440 < wl_nm <= 495:
-        return "#0284C7"  # Cyan / Sky blue (488 nm Argon)
-    elif 495 < wl_nm <= 570:
-        return "#16A34A"  # Emerald Green (532 nm DPSS)
-    elif 570 < wl_nm <= 590:
-        return "#EAB308"  # Sodium Yellow (589 nm)
-    elif 590 < wl_nm <= 620:
-        return "#EA580C"  # Orange (604 nm)
-    elif 620 < wl_nm <= 750:
-        return "#DC2626"  # Helium-Neon Red (633 nm)
-    elif wl_nm > 750:
-        return "#7F1D1D"  # Near-Infrared
-    return "#2563EB"
 
 
 def _generate_lens_side_mesh(
@@ -277,7 +260,11 @@ def plot_system_plotly(
             color = "#E2E8F0"  # Silver/aluminum mirror
             opacity = 0.90
             flatshading = True
-        elif "CCD" in comp_name or "Detector" in comp_name or "pd" in str(component).lower():
+        elif (
+            "CCD" in comp_name
+            or "Detector" in comp_name
+            or "pd" in str(component).lower()
+        ):
             color = "#475569"  # Silicon detector sensor
             opacity = 0.90
             flatshading = True
@@ -352,28 +339,26 @@ def plot_system_plotly(
             )
             traces.append(mesh)
 
-    # 2. Render Propagated Rays grouped by wavelength
-    ray_groups: dict[float, list[tuple[np.ndarray, np.ndarray]]] = {}
+    # 2. Render propagated rays grouped by their effective display color.
+    ray_groups: dict[str, list[tuple[np.ndarray, np.ndarray]]] = {}
     for ray in rays_to_render:
-        for p1, p2, wl in _extract_ray_segments(ray):
-            ray_groups.setdefault(round(wl, 5), []).append((p1, p2))
+        for p1, p2, color in _extract_ray_segments(ray):
+            ray_groups.setdefault(color, []).append((p1, p2))
 
-    for wl, segments in ray_groups.items():
+    for color, segments in ray_groups.items():
         rx, ry, rz = [], [], []
         for p1, p2 in segments:
             rx.extend([p1[0], p2[0], None])
             ry.extend([p1[1], p2[1], None])
             rz.extend([p1[2], p2[2], None])
 
-        wl_nm = int(wl * 1000.0 if wl < 10.0 else wl)
-        beam_color = _wavelength_to_color(wl)
         ray_trace = go.Scatter3d(
             x=rx,
             y=ry,
             z=rz,
             mode="lines",
-            line={"color": beam_color, "width": ray_width},
-            name=f"Beam ({wl_nm} nm)",
+            line={"color": color, "width": ray_width},
+            name="Beam",
             hoverinfo="name",
             showlegend=True,
         )
