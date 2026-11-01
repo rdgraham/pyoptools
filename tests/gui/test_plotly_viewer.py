@@ -32,6 +32,13 @@ def test_plot_system_plotly_uses_ray_draw_color():
     assert fig.data[0].line.color == "#663399"
 
 
+def test_plot_system_plotly_hides_all_ray_inputs_when_disabled():
+    ray = Ray()
+
+    assert len(plot_system_plotly(ray, show_rays=False).data) == 0
+    assert len(plot_system_plotly([ray], show_rays=False).data) == 0
+
+
 def test_plot_system_plotly_uses_optical_axis_camera():
     fig = plot_system_plotly(Ray())
 

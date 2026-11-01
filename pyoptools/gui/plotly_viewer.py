@@ -248,10 +248,12 @@ def plot_system_plotly(
         complist = [(_DummyComp(obj), (0.0, 0.0, 0.0), (0.0, 0.0, 0.0))]
     elif isinstance(obj, (list, tuple)) and len(obj) > 0 and hasattr(obj[0], "origin"):
         # List of rays
-        rays_to_render = obj
+        if show_rays:
+            rays_to_render = obj
     elif hasattr(obj, "origin") and hasattr(obj, "direction"):
         # Single ray
-        rays_to_render = [obj]
+        if show_rays:
+            rays_to_render = [obj]
 
     # 1. Render Optical Components with Hierarchical Transformations
     for component, T_comp in _iter_leaf_components(complist):
