@@ -10,6 +10,7 @@ from pyoptools.raytrace.comp_lib import (
     Block,
     CylindricalLens,
     Doublet,
+    RectMirror,
     RoundMirror,
     Stop,
 )
@@ -191,7 +192,29 @@ def test_mirror_surface_style_is_independent_of_reflectivity():
     front_surface = next(
         trace for trace in fig.data if trace.name == "RoundMirror (S1)"
     )
-    assert front_surface.color == "#F59E0B"
+    assert front_surface.color == "#8b03a6"
+    assert front_surface.opacity == 1.0
+
+
+def test_mirror_surface_render_properties_update_the_reflective_surface():
+    for mirror in (RoundMirror(), RectMirror()):
+        assert mirror.surface_render_color == "#8b03a6"
+        assert mirror.surface_render_opacity == 1.0
+
+        mirror.surface_render_color = "#123456"
+        mirror.surface_render_opacity = 0.75
+
+        assert mirror.surflist["S1"][0].render_color == "#123456"
+        assert mirror.surflist["S1"][0].render_opacity == 0.75
+
+
+def test_mirror_constructor_sets_reflective_surface_render_properties():
+    for mirror in (
+        RoundMirror(surface_render_color="#123456", surface_render_opacity=0.75),
+        RectMirror(surface_render_color="#123456", surface_render_opacity=0.75),
+    ):
+        assert mirror.surface_render_color == "#123456"
+        assert mirror.surface_render_opacity == 0.75
 
 
 def test_render_style_survives_pickle_round_trip():
