@@ -71,7 +71,11 @@ def _transformation_matrix(
 
 
 def _extract_ray_segments(ray) -> list[tuple[np.ndarray, np.ndarray, str]]:
-    """Recursively extract visible ray segments and their display colors."""
+    """Recursively extract visible ray segments and their display colors.
+    Ray colors are computed from the wavelength, unless they have been manually
+    specified, in which case matplotlib compatible color definitions are
+    resolved.
+    """
     segments = []
     p1 = np.array(ray.origin, dtype=float)
     if len(ray.childs) > 0:
@@ -92,8 +96,11 @@ def _extract_ray_segments(ray) -> list[tuple[np.ndarray, np.ndarray, str]]:
     return segments
 
 
-def _resolve_render_style(component, surface) -> tuple[str, float, bool]:
-    """Resolve surface overrides against its owning component's render style."""
+def _resolve_render_style(component, surface) -> tuple[str, float, bool, float]:
+    """Resolve surface overrides against its owning component's render style.
+    Render styles are owned by the component and can be resolved consistantly
+    by different renderers.
+    """
     color = surface.render_color
     if color is None:
         color = getattr(component, "render_color", "#CBD5E1")
@@ -106,7 +113,73 @@ def _resolve_render_style(component, surface) -> tuple[str, float, bool]:
     if smooth is None:
         smooth = getattr(component, "render_smooth", False)
 
-    return color, opacity, smooth
+    thickness = surface.render_thickness
+    if thickness is None:
+        thickness = getattr(component, "render_thickness", 0.0)
+
+    return color, opacity, smooth, thickness
+
+
+def _extrude_planar_mesh(
+    points: np.ndarray, triangles: np.ndarray, thickness: float
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return a closed display-only slab for a planar triangular mesh.
+    This is used when a cosmetic render thickness is specified, e.g. for
+    screens and stops, so they are visible when viewed edge on.
+    """
+    if thickness == 0.0 or triangles.ndim != 2 or triangles.shape[1] != 3:
+        return points, triangles
+
+    normal = None
+    for triangle in triangles:
+        p0, p1, p2 = points[triangle]
+        candidate = np.cross(p1 - p0, p2 - p0)
+        magnitude = np.linalg.norm(candidate)
+        if magnitude > 0.0:
+            normal = candidate / magnitude
+            break
+    if normal is None:
+        return points, triangles
+
+    scale = max(np.ptp(points, axis=0).max(), 1.0)
+    if not np.allclose((points - points[0]) @ normal, 0.0, atol=scale * 1e-9):
+        return points, triangles
+
+    oriented_triangles = triangles.copy()
+    for index, triangle in enumerate(oriented_triangles):
+        p0, p1, p2 = points[triangle]
+        if np.dot(np.cross(p1 - p0, p2 - p0), normal) < 0.0:
+            oriented_triangles[index, [1, 2]] = oriented_triangles[index, [2, 1]]
+
+    edges: dict[tuple[int, int], list[tuple[int, int]]] = {}
+    for triangle in oriented_triangles:
+        for start, end in zip(triangle, np.roll(triangle, -1), strict=True):
+            edges.setdefault(tuple(sorted((start, end))), []).append((start, end))
+    if any(len(edge) > 2 for edge in edges.values()):
+        return points, triangles
+
+    vertex_count = len(points)
+    offset = normal * (thickness / 2.0)
+    slab_points = np.vstack((points + offset, points - offset))
+    front = oriented_triangles
+    back = oriented_triangles[:, [0, 2, 1]] + vertex_count
+    sides = []
+    for edge in edges.values():
+        if len(edge) != 1:
+            continue
+        start, end = edge[0]
+        sides.extend(
+            (
+                (start, end + vertex_count, end),
+                (start, start + vertex_count, end + vertex_count),
+            )
+        )
+
+    if sides:
+        slab_triangles = np.vstack((front, back, np.asarray(sides, dtype=int)))
+    else:
+        slab_triangles = np.vstack((front, back))
+    return slab_points, slab_triangles
 
 
 def _generate_lens_side_mesh(
@@ -284,6 +357,10 @@ def plot_system_plotly(
             polys = np.array(polys, dtype=int)
             if len(pts) == 0 or len(polys) == 0:
                 continue
+            color, opacity, smooth, thickness = _resolve_render_style(
+                component, surf_obj
+            )
+            pts, polys = _extrude_planar_mesh(pts, polys, thickness)
 
             # Composite 4x4 matrix: World = T_comp @ T_surface
             T_surf = _transformation_matrix(surf_pos, surf_rot)
@@ -292,7 +369,6 @@ def plot_system_plotly(
             pts_4d = np.hstack([pts, np.ones((len(pts), 1), dtype=float)])
             world_pts = (T_total @ pts_4d.T).T[:, :3]
 
-            color, opacity, smooth = _resolve_render_style(component, surf_obj)
             mesh = go.Mesh3d(
                 x=world_pts[:, 0],
                 y=world_pts[:, 1],
@@ -365,8 +441,10 @@ def plot_system_plotly(
                 "gridcolor": "#E5E7EB" if not dark_mode else "#333333",
             },
             "camera": {
-                "eye": camera_eye or {"x": -1.6, "y": -1.6, "z": 1.3},
-                "up": {"x": 0, "y": 0, "z": 1},
+                "eye": camera_eye or {"x": 1.0, "y": 0, "z": 0},
+                "up": {"x": 0, "y": -1, "z": 0},
+                "center": {"x": 0, "y": 0, "z": 0},
+                "projection": {"type": "orthographic"},
             },
         },
         margin={"l": 10, "r": 10, "b": 10, "t": 50},

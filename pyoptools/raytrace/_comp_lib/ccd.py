@@ -68,6 +68,7 @@ class CCD(Component):
         kwargs.setdefault("render_color", "#475569")
         kwargs.setdefault("render_opacity", 0.90)
         kwargs.setdefault("render_smooth", False)
+        kwargs.setdefault("render_thickness", 0.1)
         Component.__init__(self, *args, **kwargs)
         self.__d_surf = Plane(
             shape=Rectangular(size=size)

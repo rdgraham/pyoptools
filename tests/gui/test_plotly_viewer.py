@@ -4,12 +4,14 @@ import numpy as np
 import pytest
 
 from pyoptools.gui.ipywidgets import Plot3D
-from pyoptools.gui.plotly_viewer import plot_system_plotly
+from pyoptools.gui.plotly_viewer import _extrude_planar_mesh, plot_system_plotly
 from pyoptools.raytrace.comp_lib import (
+    CCD,
     Block,
     CylindricalLens,
     Doublet,
     RoundMirror,
+    Stop,
 )
 from pyoptools.raytrace.component import Component
 from pyoptools.raytrace.ray import Ray
@@ -28,6 +30,16 @@ def test_plot_system_plotly_uses_ray_draw_color():
 
     assert len(fig.data) == 1
     assert fig.data[0].line.color == "#663399"
+
+
+def test_plot_system_plotly_uses_optical_axis_camera():
+    fig = plot_system_plotly(Ray())
+
+    camera = fig.layout.scene.camera
+    assert camera.eye.to_plotly_json() == {"x": 1.0, "y": 0, "z": 0}
+    assert camera.up.to_plotly_json() == {"x": 0, "y": -1, "z": 0}
+    assert camera.center.to_plotly_json() == {"x": 0, "y": 0, "z": 0}
+    assert camera.projection.type == "orthographic"
 
 
 def test_plot_system_plotly():
@@ -97,6 +109,7 @@ def test_plot_system_plotly_uses_component_and_surface_styles():
     block.surflist["S1"][0].render_color = "#445566"
     block.surflist["S1"][0].render_opacity = 0.75
     block.surflist["S1"][0].render_smooth = False
+    block.surflist["S1"][0].render_thickness = 0.4
 
     fig = plot_system_plotly(block)
 
@@ -104,6 +117,7 @@ def test_plot_system_plotly_uses_component_and_surface_styles():
     assert traces["Block (S1)"].color == "#445566"
     assert traces["Block (S1)"].opacity == 0.75
     assert traces["Block (S1)"].flatshading is True
+    assert np.ptp(traces["Block (S1)"].z) == pytest.approx(0.4)
     assert traces["Block (S2)"].color == "#112233"
     assert traces["Block (S2)"].opacity == 0.25
     assert traces["Block (S2)"].flatshading is False
@@ -124,6 +138,44 @@ def test_plot_single_surface_uses_surface_style():
     assert fig.data[0].flatshading is False
 
 
+def test_render_thickness_defaults_and_component_inheritance():
+    detector = ArrayDetector(size=(15, 15))
+
+    assert np.ptp(plot_system_plotly(detector).data[0].z) == pytest.approx(0.1)
+    assert np.ptp(plot_system_plotly(CCD()).data[0].z) == pytest.approx(0.1)
+    assert np.ptp(plot_system_plotly(Stop()).data[0].z) == pytest.approx(0.1)
+
+
+def test_render_thickness_extrusion_and_zero_thickness_compatibility():
+    surface = Plane(shape=Rectangular(size=(10, 10)))
+    points, triangles = surface.polylist()
+    points = np.asarray(points, dtype=float)
+    triangles = np.asarray(triangles, dtype=int)
+
+    slab_points, slab_triangles = _extrude_planar_mesh(points, triangles, 0.2)
+    unchanged_points, unchanged_triangles = _extrude_planar_mesh(points, triangles, 0.0)
+
+    assert len(slab_points) == 2 * len(points)
+    assert len(slab_triangles) > 2 * len(triangles)
+    assert np.ptp(slab_points[:, 2]) == pytest.approx(0.2)
+    assert np.allclose(unchanged_points, points)
+    assert np.array_equal(unchanged_triangles, triangles)
+
+
+def test_render_thickness_follows_surface_transform():
+    surface = Plane(shape=Rectangular(size=(10, 10)))
+    component = Component(
+        surflist=[(surface, (0, 0, 0), (np.pi / 2, 0, 0))],
+        render_thickness=0.2,
+    )
+    system = System(complist=[(component, (1, 2, 3), (0, 0, 0))])
+
+    trace = plot_system_plotly(system).data[0]
+
+    assert np.ptp(trace.y) == pytest.approx(0.2)
+    assert np.mean(trace.y) == pytest.approx(2.0)
+
+
 def test_mirror_surface_style_is_independent_of_reflectivity():
     mirror = RoundMirror(reflectivity=0)
 
@@ -137,9 +189,17 @@ def test_mirror_surface_style_is_independent_of_reflectivity():
 
 def test_render_style_survives_pickle_round_trip():
     component = Component(
-        render_color="#123456", render_opacity=0.4, render_smooth=True
+        render_color="#123456",
+        render_opacity=0.4,
+        render_smooth=True,
+        render_thickness=0.3,
     )
-    surface = Plane(render_color="#654321", render_opacity=0.6, render_smooth=True)
+    surface = Plane(
+        render_color="#654321",
+        render_opacity=0.6,
+        render_smooth=True,
+        render_thickness=0.2,
+    )
 
     restored_component = pickle.loads(pickle.dumps(component))
     restored_surface = pickle.loads(pickle.dumps(surface))
@@ -147,6 +207,8 @@ def test_render_style_survives_pickle_round_trip():
     assert restored_component.render_color == "#123456"
     assert restored_component.render_opacity == 0.4
     assert restored_component.render_smooth is True
+    assert restored_component.render_thickness == 0.3
     assert restored_surface.render_color == "#654321"
     assert restored_surface.render_opacity == 0.6
     assert restored_surface.render_smooth is True
+    assert restored_surface.render_thickness == 0.2

@@ -13,7 +13,8 @@
 # ------------------------------------------------------------------------------
 
 from pyoptools.misc.pmisc import hitlist2int_list, hitlist2int, interpolate_g
-from numpy import array, dot, isinf as npisinf, power, any, linspace, \
+from numpy import array, dot, isfinite as npisfinite, isinf as npisinf, power, any, \
+    linspace, \
     meshgrid, indices, argwhere, tan, polyfit, arange, where, inf
 
 import cython
@@ -78,7 +79,8 @@ cdef class Surface(Picklable):
                  filter_spec=None,
                  render_color=None,
                  render_opacity=None,
-                 render_smooth=None):
+                 render_smooth=None,
+                 render_thickness=None):
         self.reflectivity = reflectivity
         self.shape = shape if shape is not None else Circular(radius=10.)
         self._hit_list = []
@@ -89,9 +91,13 @@ cdef class Surface(Picklable):
         self.id = []
         if render_opacity is not None and not 0. <= render_opacity <= 1.:
             raise ValueError("render_opacity must be between 0 and 1")
+        if (render_thickness is not None and
+                (not npisfinite(render_thickness) or render_thickness < 0.)):
+            raise ValueError("render_thickness must be finite and non-negative")
         self.render_color = render_color
         self.render_opacity = render_opacity
         self.render_smooth = render_smooth
+        self.render_thickness = render_thickness
 
         if filter_spec is None:
             filter_spec = ("nofilter",)
@@ -135,6 +141,7 @@ cdef class Surface(Picklable):
             "render_color",
             "render_opacity",
             "render_smooth",
+            "render_thickness",
         )
 
     @property

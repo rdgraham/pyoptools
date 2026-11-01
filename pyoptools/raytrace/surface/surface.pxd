@@ -30,7 +30,7 @@ cdef class Surface(Picklable):
     cdef public list id
 
     # Optional renderer-neutral overrides for the owning component's style.
-    cdef public object render_color, render_opacity, render_smooth
+    cdef public object render_color, render_opacity, render_smooth, render_thickness
 
     # Method representing the topography of the surface.
     # Used for rendering the surface in Jupyter Lab

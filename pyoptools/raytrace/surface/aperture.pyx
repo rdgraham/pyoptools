@@ -59,6 +59,7 @@ cdef class Aperture(Plane):
         kwargs.setdefault("render_color", "#1E293B")
         kwargs.setdefault("render_opacity", 0.95)
         kwargs.setdefault("render_smooth", False)
+        kwargs.setdefault("render_thickness", 0.1)
         Plane.__init__(self, *args, **kwargs)
         self.ap_shape = ap_shape
 
