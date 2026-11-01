@@ -75,7 +75,10 @@ cdef class Surface(Picklable):
     def __init__(self,
                  reflectivity=0.,
                  shape=None,
-                 filter_spec=None):
+                 filter_spec=None,
+                 render_color=None,
+                 render_opacity=None,
+                 render_smooth=None):
         self.reflectivity = reflectivity
         self.shape = shape if shape is not None else Circular(radius=10.)
         self._hit_list = []
@@ -84,6 +87,11 @@ cdef class Surface(Picklable):
         # and when the system is created
 
         self.id = []
+        if render_opacity is not None and not 0. <= render_opacity <= 1.:
+            raise ValueError("render_opacity must be between 0 and 1")
+        self.render_color = render_color
+        self.render_opacity = render_opacity
+        self.render_smooth = render_smooth
 
         if filter_spec is None:
             filter_spec = ("nofilter",)
@@ -118,7 +126,16 @@ cdef class Surface(Picklable):
         else:
             raise ValueError(f"Invalid filter type: {filter_type}")
 
-        Picklable.__init__(self, "reflectivity", "shape", "_hit_list", "id")
+        Picklable.__init__(
+            self,
+            "reflectivity",
+            "shape",
+            "_hit_list",
+            "id",
+            "render_color",
+            "render_opacity",
+            "render_smooth",
+        )
 
     @property
     def hit_list(self):

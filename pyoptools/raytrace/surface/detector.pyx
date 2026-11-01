@@ -66,6 +66,9 @@ cdef class ArrayDetector(Plane):
     def __init__(self, size=(10, 10), *args, **kwargs):
 
         # Create a detector with a dummy size|
+        kwargs.setdefault("render_color", "#475569")
+        kwargs.setdefault("render_opacity", 0.90)
+        kwargs.setdefault("render_smooth", False)
         Plane.__init__(self, shape=Rectangular(size=size), *args, **kwargs)
         self.size = size
         self.addkey("size")

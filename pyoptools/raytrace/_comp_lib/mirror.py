@@ -72,11 +72,15 @@ class RoundMirror(Component):
         *args,
         **kwargs,
     ):
+        kwargs.setdefault("render_color", "#E2E8F0")
+        kwargs.setdefault("render_opacity", 0.90)
+        kwargs.setdefault("render_smooth", False)
         Component.__init__(self, *args, **kwargs)
         __a_surf = Plane(
             shape=Circular(radius=radius),
             reflectivity=reflectivity,
             filter_spec=filter_spec,
+            render_color="#F59E0B",
         )
         __p_surf = Plane(shape=Circular(radius=radius))
 
@@ -111,6 +115,9 @@ class RectMirror(Component):
         *args,
         **kwargs,
     ):
+        kwargs.setdefault("render_color", "#E2E8F0")
+        kwargs.setdefault("render_opacity", 0.90)
+        kwargs.setdefault("render_smooth", False)
         Component.__init__(self, *args, **kwargs)
         self.size = size
         width, height, length = self.size
@@ -119,6 +126,7 @@ class RectMirror(Component):
             shape=Rectangular(size=(width, height)),
             reflectivity=reflectivity,
             filter_spec=filter_spec,
+            render_color="#F59E0B",
         )
         __p_surf = Plane(shape=Rectangular(size=(width, height)))
 

@@ -92,6 +92,23 @@ def _extract_ray_segments(ray) -> list[tuple[np.ndarray, np.ndarray, str]]:
     return segments
 
 
+def _resolve_render_style(component, surface) -> tuple[str, float, bool]:
+    """Resolve surface overrides against its owning component's render style."""
+    color = surface.render_color
+    if color is None:
+        color = getattr(component, "render_color", "#CBD5E1")
+
+    opacity = surface.render_opacity
+    if opacity is None:
+        opacity = getattr(component, "render_opacity", 0.5)
+
+    smooth = surface.render_smooth
+    if smooth is None:
+        smooth = getattr(component, "render_smooth", False)
+
+    return color, opacity, smooth
+
+
 def _generate_lens_side_mesh(
     component, T_comp: np.ndarray
 ) -> tuple[np.ndarray, np.ndarray] | tuple[None, None]:
@@ -243,40 +260,6 @@ def plot_system_plotly(
     for component, T_comp in _iter_leaf_components(complist):
         comp_name = type(component).__name__
 
-        # Material styling: clean, distinct optical materials
-        if "Polygon" in comp_name or "Prism" in comp_name:
-            color = "#38BDF8"  # Refractive optical glass
-            opacity = 0.40
-            flatshading = True
-        elif (
-            "Cylindrical" in comp_name
-            or "Lens" in comp_name
-            or "Spherical" in comp_name
-        ):
-            color = "#BAE6FD"  # High-transparency optical glass
-            opacity = 0.45
-            flatshading = False
-        elif "Mirror" in comp_name:
-            color = "#E2E8F0"  # Silver/aluminum mirror
-            opacity = 0.90
-            flatshading = True
-        elif (
-            "CCD" in comp_name
-            or "Detector" in comp_name
-            or "pd" in str(component).lower()
-        ):
-            color = "#475569"  # Silicon detector sensor
-            opacity = 0.90
-            flatshading = True
-        elif "Stop" in comp_name or "Aperture" in comp_name:
-            color = "#1E293B"  # Matte dark chassis
-            opacity = 0.95
-            flatshading = True
-        else:
-            color = "#CBD5E1"
-            opacity = 0.50
-            flatshading = True
-
         surflist = getattr(component, "surflist", [])
         if isinstance(surflist, dict):
             surf_items = list(surflist.items())
@@ -309,12 +292,7 @@ def plot_system_plotly(
             pts_4d = np.hstack([pts, np.ones((len(pts), 1), dtype=float)])
             world_pts = (T_total @ pts_4d.T).T[:, :3]
 
-            facet_color = (
-                "#F59E0B" if getattr(surf_obj, "reflectivity", 0) == 1 else color
-            )
-            surf_opacity = opacity
-
-            is_planar = "Plane" in type(surf_obj).__name__
+            color, opacity, smooth = _resolve_render_style(component, surf_obj)
             mesh = go.Mesh3d(
                 x=world_pts[:, 0],
                 y=world_pts[:, 1],
@@ -323,9 +301,9 @@ def plot_system_plotly(
                 j=polys[:, 1],
                 k=polys[:, 2],
                 name=f"{comp_name} ({surf_key})",
-                color=facet_color,
-                opacity=surf_opacity,
-                flatshading=True if is_planar else flatshading,
+                color=color,
+                opacity=opacity,
+                flatshading=not smooth,
                 lighting={
                     "ambient": 0.7,
                     "diffuse": 0.9,

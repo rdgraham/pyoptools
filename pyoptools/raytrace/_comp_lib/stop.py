@@ -54,6 +54,9 @@ class Stop(Component):
     # __face = Instance(Aperture)
 
     def __init__(self, shape=None, ap_shape=None, **traits):
+        traits.setdefault("render_color", "#1E293B")
+        traits.setdefault("render_opacity", 0.95)
+        traits.setdefault("render_smooth", False)
         Component.__init__(self, **traits)
         # self.shape=shape
         # self.ap_shape=ap_shape
